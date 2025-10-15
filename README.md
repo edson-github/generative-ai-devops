@@ -171,3 +171,4 @@ Sugestões de novos desafios ou melhorias de dashboards são bem-vindas via issu
 
 Boa jornada! Utilize a GenAI apenas dentro do escopo evidenciado no repositório e valide sempre cada modificação com execução local ou via Docker Compose. 🙌
 
+# generative-ai-devops
