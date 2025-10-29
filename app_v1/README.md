@@ -20,11 +20,22 @@ Arquivos adicionados:
 - `prometheus/prometheus.yml`: configuração do Prometheus para scrape do backend
 - `.dockerignore`: ignora artefatos locais ao buildar
 
-Compose cria um volume nomeado `pgdata` para o banco e usa bind mounts (`./:/app`) para hot-reload em desenvolvimento.
+Compose cria um volume nomeado `pgdata` para o banco e usa bind mounts (`./:/app`) para hot-reload em desenvolvimento (backend e frontend).
 
 Windows PowerShell:
 
 ```powershell
+# Crie o arquivo de variáveis (app_v1/.env) antes de subir
+# Exemplo mínimo seguro para desenvolvimento:
+# POSTGRES_USER=app
+# POSTGRES_PASSWORD=<defina-uma-senha>
+# POSTGRES_DB=appdb
+# DATABASE_URL=postgresql+psycopg://app:<senha>@localhost:5432/appdb
+# GF_SECURITY_ADMIN_USER=admin
+# GF_SECURITY_ADMIN_PASSWORD=<defina-uma-senha>
+# OPENSEARCH_INITIAL_ADMIN_PASSWORD=<defina-uma-senha>
+# OPENSEARCH_ENABLED=false
+
 docker compose build
 docker compose up -d
 ```
@@ -49,6 +60,47 @@ Parar:
 ```powershell
 docker compose down
 ```
+
+### Teste de fumaça (smoke)
+
+Após subir os serviços principais, execute o teste de fumaça localmente (usa `httpx`):
+
+```powershell
+python app_v1/scripts/smoke_test.py
+```
+
+Variáveis opcionais:
+- `API_BASE` (default: `http://localhost:8000`)
+- `UI_URL` (default: `http://localhost:8501`)
+- `SMOKE_RETRIES` (default: `30`)
+- `SMOKE_TIMEOUT` (default: `10`)
+
+### Validação completa (todas as etapas)
+
+Com todos os serviços do `docker-compose` ativos (incl. Prometheus, Grafana, Exporter, OpenSearch), execute:
+
+```powershell
+python app_v1/scripts/full_validation.py
+```
+
+Checks (padrão):
+- API CRUD + `/metrics`
+- UI Streamlit acessível
+- Postgres Exporter em `http://localhost:9187/metrics`
+- Prometheus pronto + targets `backend` e `postgres-exporter` UP
+- Grafana (auth `admin/admin`): health, datasources (Prometheus) e dashboards provisionados
+- OpenSearch: API root e índice `logs-app-v1` (best-effort)
+
+Env vars úteis:
+- `API_BASE` (default `http://localhost:8000`)
+- `UI_URL` (default `http://localhost:8501`)
+- `PROMETHEUS_URL` (default `http://localhost:9090`)
+- `PG_EXPORTER_URL` (default `http://localhost:9187/metrics`)
+- `GRAFANA_URL` (default `http://localhost:3000`)
+- `GRAFANA_USER`, `GRAFANA_PASSWORD` (defaults `admin/admin`)
+- `OPENSEARCH_URL` (default `http://localhost:9200`), `OPENSEARCH_INDEX` (`logs-app-v1`)
+- `CHECK_GRAFANA` (default `true`), `CHECK_OPENSEARCH` (default `true`)
+- `VALIDATE_RETRIES` (default `60`), `VALIDATE_TIMEOUT` (default `10`)
 
 ## Variáveis de ambiente
 
