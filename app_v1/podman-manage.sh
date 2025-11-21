@@ -73,7 +73,7 @@ case "$1" in
     
     shell)
         if [ -z "$2" ]; then
-            echo "❌ Especifique o serviço: backend, frontend, db, ou prometheus"
+            echo "❌ Especifique o serviço: backend, frontend, db, prometheus, ou postgres-exporter"
             exit 1
         fi
         python3 -m podman_compose exec "$2" /bin/bash
@@ -94,7 +94,10 @@ case "$1" in
         echo "  ps|status   - Mostra status dos containers"
         echo "  test        - Executa smoke tests"
         echo "  clean       - Remove containers, volumes e limpa o sistema"
-        echo "  shell {svc} - Abre shell em um container (backend, frontend, db, prometheus)"
+        echo "  shell {svc} - Abre shell em um container"
+        echo ""
+        echo "Serviços disponíveis:"
+        echo "  backend, frontend, db, prometheus, postgres-exporter"
         echo ""
         echo "Exemplos:"
         echo "  $0 up                    # Inicia todos os serviços"

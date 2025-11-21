@@ -7,6 +7,7 @@ Portas padrão:
 - Frontend: 8501
 - Postgres: 5432
 - Prometheus: 9090
+- PostgreSQL Exporter: 9187
 
 ## Rodando com Podman Compose
 
@@ -150,6 +151,67 @@ A aplicação foi instrumentada para expor métricas no formato Prometheus.
 ### Acesso
 - Endpoint de métricas do backend: `http://localhost:8000/metrics`
 - Prometheus UI: `http://localhost:9090`
+
+## Monitoramento do Banco de Dados
+
+A aplicação inclui o **PostgreSQL Exporter** para expor métricas detalhadas do banco de dados.
+
+### Serviço PostgreSQL Exporter
+- Imagem: `prometheuscommunity/postgres-exporter:latest`
+- Porta: `9187`
+- Endpoint: `http://localhost:9187/metrics`
+- Conexão: Usa credenciais do banco (user: `app`, db: `appdb`)
+
+### Métricas do PostgreSQL disponíveis
+- `pg_up`: Status do banco (1 = up, 0 = down)
+- `pg_stat_database_*`: Estatísticas por database
+  - `pg_stat_database_xact_commit`: Transações commitadas
+  - `pg_stat_database_xact_rollback`: Transações revertidas
+  - `pg_stat_database_tup_inserted`: Tuplas inseridas
+  - `pg_stat_database_tup_updated`: Tuplas atualizadas
+  - `pg_stat_database_tup_deleted`: Tuplas deletadas
+  - `pg_stat_database_tup_fetched`: Tuplas buscadas
+- `pg_database_size_bytes`: Tamanho do banco em bytes
+- `pg_stat_user_tables_*`: Estatísticas por tabela
+- `pg_locks_*`: Informações sobre locks
+
+### Queries úteis no Prometheus
+
+**Status do banco:**
+```promql
+pg_up
+```
+
+**Tamanho do banco appdb:**
+```promql
+pg_database_size_bytes{datname="appdb"}
+```
+
+**Taxa de commits por segundo:**
+```promql
+rate(pg_stat_database_xact_commit{datname="appdb"}[1m])
+```
+
+**Taxa de inserções por segundo:**
+```promql
+rate(pg_stat_database_tup_inserted{datname="appdb"}[1m])
+```
+
+**Total de conexões ativas:**
+```promql
+pg_stat_database_numbackends{datname="appdb"}
+```
+
+### Validação
+1. Acesse `http://localhost:9187/metrics` para ver métricas brutas
+2. No Prometheus (`http://localhost:9090/targets`), verifique que `postgres-exporter` está UP
+3. Execute queries no Prometheus Graph para visualizar métricas
+
+### Boas práticas de segurança
+- Em produção, crie um usuário dedicado com privilégios mínimos (ex.: `metrics`)
+- Use variáveis de ambiente ou secrets para credenciais
+- Não exponha a porta 9187 externamente em produção
+- Configure ACLs/firewall para restringir acesso ao exporter
 
 ## Testes de Carga com k6
 Esta aplicação inclui dois scripts de teste de carga usando k6, integrados ao Docker Compose via profile `k6`.
