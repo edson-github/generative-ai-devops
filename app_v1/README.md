@@ -7,133 +7,149 @@ Portas padrão:
 - Frontend: 8501
 - Postgres: 5432
 - Prometheus: 9090
-- Grafana: 3000
-- OpenSearch: 9200
-- OpenSearch Dashboards: 5601
 
-## Rodando com Docker Compose
+## Rodando com Podman Compose
 
-Arquivos adicionados:
+Arquivos de containerização:
 - `backend/Dockerfile`: imagem do backend (FastAPI + Uvicorn)
 - `frontend/Dockerfile`: imagem do frontend (Streamlit)
-- `docker-compose.yml`: orquestra backend, frontend e Postgres
-- `prometheus/prometheus.yml`: configuração do Prometheus para scrape do backend
+- `docker-compose.yml`: orquestra backend, frontend e Postgres (compatível com Podman)
 - `.dockerignore`: ignora artefatos locais ao buildar
 
 Compose cria um volume nomeado `pgdata` para o banco e usa bind mounts (`./:/app`) para hot-reload em desenvolvimento (backend e frontend).
 
-Windows PowerShell:
+### Pré-requisitos
 
-```powershell
-# Crie o arquivo de variáveis (app_v1/.env) antes de subir
-# Exemplo mínimo seguro para desenvolvimento:
-# POSTGRES_USER=app
-# POSTGRES_PASSWORD=<defina-uma-senha>
-# POSTGRES_DB=appdb
-# DATABASE_URL=postgresql+psycopg://app:<senha>@localhost:5432/appdb
-# GF_SECURITY_ADMIN_USER=admin
-# GF_SECURITY_ADMIN_PASSWORD=<defina-uma-senha>
-# OPENSEARCH_INITIAL_ADMIN_PASSWORD=<defina-uma-senha>
-# OPENSEARCH_ENABLED=false
+1. **Podman** e **podman-compose** instalados:
+   ```bash
+   # macOS (via Homebrew)
+   brew install podman
+   pip3 install podman-compose
+   
+   # Linux
+   sudo apt install podman  # Debian/Ubuntu
+   pip3 install podman-compose
+   ```
 
-docker compose build
-docker compose up -d
+2. Arquivo `.env` na raiz `app_v1/` (opcional, valores padrão já estão no docker-compose.yml).
+
+### Passo a passo
+
+1. **(Opcional)** Crie o arquivo `.env` na pasta `app_v1`:
+```env
+POSTGRES_USER=app
+POSTGRES_PASSWORD=app
+POSTGRES_DB=appdb
+DATABASE_URL=postgresql+psycopg://app:app@db:5432/appdb
+API_HOST=backend
+API_PORT=8000
 ```
 
-Acesse:
-- UI: http://localhost:8501
-- API: http://localhost:8000
-- Prometheus: http://localhost:9090 (targets e consultas)
-  - Postgres Exporter: http://localhost:9187/metrics (opcional)
-- Grafana: http://localhost:3000 (admin/admin)
-- OpenSearch (API): http://localhost:9200
-- OpenSearch Dashboards: http://localhost:5601
+2. Use o script auxiliar para gerenciar o ambiente:
+```bash
+# Iniciar todos os serviços
+./podman-manage.sh up
 
-Logs:
-```powershell
-docker compose logs -f backend
-docker compose logs -f frontend
-docker compose logs -f db
+# Verificar status
+./podman-manage.sh status
+
+# Ver logs
+./podman-manage.sh logs
+
+# Executar smoke tests
+./podman-manage.sh test
+
+# Parar serviços
+./podman-manage.sh down
 ```
 
-Parar:
-```powershell
-docker compose down
+3. Ou use diretamente o podman-compose:
+```bash
+# Construir imagens
+python3 -m podman_compose build
+
+# Subir aplicação
+python3 -m podman_compose up -d
+
+# Verificar status
+python3 -m podman_compose ps
+podman ps
 ```
 
-### Teste de fumaça (smoke)
+4. Acesse:
+- Frontend: http://localhost:8501
+- Backend Docs: http://localhost:8000/docs
+- Prometheus: http://localhost:9090
 
-Após subir os serviços principais, execute o teste de fumaça localmente (usa `httpx`):
-
-```powershell
-python app_v1/scripts/smoke_test.py
+5. Logs:
+```bash
+python3 -m podman_compose logs -f
+# ou logs de um serviço específico:
+python3 -m podman_compose logs -f backend
 ```
 
-Variáveis opcionais:
-- `API_BASE` (default: `http://localhost:8000`)
-- `UI_URL` (default: `http://localhost:8501`)
-- `SMOKE_RETRIES` (default: `30`)
-- `SMOKE_TIMEOUT` (default: `10`)
-
-### Validação completa (todas as etapas)
-
-Com todos os serviços do `docker-compose` ativos (incl. Prometheus, Grafana, Exporter, OpenSearch), execute:
-
-```powershell
-python app_v1/scripts/full_validation.py
+6. Parar:
+```bash
+python3 -m podman_compose down
 ```
 
-Checks (padrão):
-- API CRUD + `/metrics`
-- UI Streamlit acessível
-- Postgres Exporter em `http://localhost:9187/metrics`
-- Prometheus pronto + targets `backend` e `postgres-exporter` UP
-- Grafana (auth `admin/admin`): health, datasources (Prometheus) e dashboards provisionados
-- OpenSearch: API root e índice `logs-app-v1` (best-effort)
+### Script auxiliar `podman-manage.sh`
 
-Env vars úteis:
-- `API_BASE` (default `http://localhost:8000`)
-- `UI_URL` (default `http://localhost:8501`)
-- `PROMETHEUS_URL` (default `http://localhost:9090`)
-- `PG_EXPORTER_URL` (default `http://localhost:9187/metrics`)
-- `GRAFANA_URL` (default `http://localhost:3000`)
-- `GRAFANA_USER`, `GRAFANA_PASSWORD` (defaults `admin/admin`)
-- `OPENSEARCH_URL` (default `http://localhost:9200`), `OPENSEARCH_INDEX` (`logs-app-v1`)
-- `CHECK_GRAFANA` (default `true`), `CHECK_OPENSEARCH` (default `true`)
-- `VALIDATE_RETRIES` (default `60`), `VALIDATE_TIMEOUT` (default `10`)
+O script fornece comandos simplificados para gerenciar o ambiente:
+
+| Comando | Descrição |
+|---------|-----------|
+| `up` | Inicia todos os serviços |
+| `down` | Para todos os serviços |
+| `restart` | Reinicia todos os serviços |
+| `build` | Constrói as imagens |
+| `rebuild` | Reconstrói tudo do zero e inicia |
+| `logs [svc]` | Mostra logs (opcionalmente de um serviço específico) |
+| `ps` ou `status` | Mostra status dos containers |
+| `test` | Executa smoke tests |
+| `clean` | Remove containers, volumes e limpa o sistema |
+| `shell {svc}` | Abre shell em um container |
+
+Exemplos:
+```bash
+./podman-manage.sh up                # Inicia todos os serviços
+./podman-manage.sh logs backend      # Mostra logs do backend
+./podman-manage.sh shell backend     # Abre shell no container do backend
+./podman-manage.sh test              # Executa smoke tests
+./podman-manage.sh clean             # Limpa tudo
+```
 
 ## Variáveis de ambiente
 
-- Backend lê `DATABASE_URL` (Compose).
-- Frontend usa `API_HOST` e `API_PORT`.
-- Backend expõe métricas em `/metrics` (Prometheus format) via middleware.
-
-## Observabilidade (Grafana)
-- Datasource Prometheus provisionado (`http://prometheus:9090`).
-- Dashboards em `grafana/provisioning/dashboards/json/`.
-
-## Logs estruturados + OpenSearch
-Campos principais de log JSON: `timestamp`, `level`, `logger`, `message`, `request_id`, `method`, `path`, `status_code`, `duration_ms`, `client_ip`, `user_agent`.
-Envio para índice `logs-app-v1` se `OPENSEARCH_ENABLED=true`.
-
-## CORS
-Backend permite `http://localhost:8501`.
+- Backend lê `DATABASE_URL` (definida no docker-compose ou .env).
+- Frontend usa `API_HOST` e `API_PORT` para encontrar o backend.
 
 ## Observações
-- Criação de tabelas automática (didático). Em produção: Alembic.
-- Dockerfiles usam `python:3.11-slim` e usuário não-root.
-
-## Observabilidade (Prometheus)
-Consultas exemplo:
-- RPS: `sum(rate(http_requests_total[1m]))`
-- Latência média: `rate(http_request_duration_seconds_sum[1m]) / rate(http_request_duration_seconds_count[1m])`
-- Em progresso: `sum(http_requests_in_progress)`
-- Exceções: `sum(rate(http_exceptions_total[1m])) by (exception_type)`
-- DB: `pg_up`, `pg_stat_database_tup_inserted`, `pg_database_size_bytes{datname="appdb"}`
+- Criação de tabelas automática no startup do backend.
+- Dockerfiles usam `python:3.11-slim` e usuário não-root para segurança.
+- Hot-reload ativado via volumes.
 
 ## Entidade e Endpoints (resumo)
 - Item: `id` (UUID), `title`, `description?`, `status` (`pending|in_progress|done`), `created_at`, `updated_at`.
 - Endpoints: `GET /items`, `GET /items/{id}`, `POST /items` (201), `PUT /items/{id}`, `DELETE /items/{id}` (204).
+
+## Entidade e Endpoints (resumo)
+- Item: `id` (UUID), `title`, `description?`, `status` (`pending|in_progress|done`), `created_at`, `updated_at`.
+- Endpoints: `GET /items`, `GET /items/{id}`, `POST /items` (201), `PUT /items/{id}`, `DELETE /items/{id}` (204).
+
+## Monitoramento com Prometheus
+
+A aplicação foi instrumentada para expor métricas no formato Prometheus.
+
+### Métricas disponíveis
+- `http_requests_total`: Total de requisições HTTP (labels: method, path, status_code)
+- `http_request_duration_seconds`: Histograma da duração das requisições (labels: method, path)
+- `http_requests_in_progress`: Gauge de requisições em andamento (labels: method, path)
+- `http_exceptions_total`: Total de exceções não tratadas (labels: method, path, exception_type)
+
+### Acesso
+- Endpoint de métricas do backend: `http://localhost:8000/metrics`
+- Prometheus UI: `http://localhost:9090`
 
 ## Testes de Carga com k6
 Esta aplicação inclui dois scripts de teste de carga usando k6, integrados ao Docker Compose via profile `k6`.

@@ -1,33 +1,26 @@
 services:
   db:
     image: postgres:16
-    container_name: appv1-db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      - POSTGRES_USER=app
+      - POSTGRES_PASSWORD=app
+      - POSTGRES_DB=appdb
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 10s
+      test: [ "CMD-SHELL", "pg_isready -U app -d appdb" ]
+      interval: 5s
       timeout: 5s
       retries: 5
+    ports:
+      - "5432:5432"
 
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: appv1-backend
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      OPENSEARCH_ENABLED: ${OPENSEARCH_ENABLED}
-      OPENSEARCH_HOST: ${OPENSEARCH_HOST}
-      OPENSEARCH_PORT: ${OPENSEARCH_PORT}
-      OPENSEARCH_SCHEME: ${OPENSEARCH_SCHEME}
-      OPENSEARCH_USER: ${OPENSEARCH_USER}
-      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
-      OPENSEARCH_INDEX: ${OPENSEARCH_INDEX}
+      - DATABASE_URL=postgresql+psycopg://app:app@db:5432/appdb
     ports:
       - "8000:8000"
     volumes:
@@ -35,17 +28,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      opensearch:
-        condition: service_started
 
   frontend:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    container_name: appv1-frontend
     environment:
-      API_HOST: backend
-      API_PORT: 8000
+      - API_HOST=backend
+      - API_PORT=8000
     ports:
       - "8501:8501"
     volumes:
@@ -56,12 +46,6 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    container_name: appv1-prometheus
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      # A flag experimental antiga (--enable-feature=remote-write-receiver) gerava 404.
-      # Versões recentes usam a flag estável abaixo para expor /api/v1/write
-      - "--web.enable-remote-write-receiver"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
@@ -69,73 +53,6 @@ services:
     depends_on:
       backend:
         condition: service_started
-
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
-    container_name: appv1-postgres-exporter
-    environment:
-      - DATA_SOURCE_NAME=postgresql://app:app@db:5432/appdb?sslmode=disable
-    ports:
-      - "9187:9187"
-    depends_on:
-      db:
-        condition: service_healthy
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: appv1-grafana
-    ports:
-      - "3000:3000"
-    depends_on:
-      prometheus:
-        condition: service_started
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
-      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
-    volumes:
-      - ./grafana/provisioning/:/etc/grafana/provisioning/
-
-  opensearch:
-    image: opensearchproject/opensearch:2
-    container_name: appv1-opensearch
-    environment:
-      - discovery.type=single-node
-      - plugins.security.disabled=true
-      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
-      - DISABLE_INSTALL_DEMO_CONFIG=true
-      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
-    ports:
-      - "9200:9200"
-      - "9600:9600"
-
-  opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2
-    container_name: appv1-opensearch-dashboards
-    environment:
-      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
-      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
-    ports:
-      - "5601:5601"
-    depends_on:
-      opensearch:
-        condition: service_started
-
-  k6:
-    image: grafana/k6:latest
-    profiles: ["k6"]
-    depends_on:
-      backend:
-        condition: service_started
-      prometheus:
-        condition: service_started
-    environment:
-      - K6_OUT=experimental-prometheus-rw
-      - K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write
-      - K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99),avg,med,min,max
-      - API_BASE=http://backend:8000
-    volumes:
-      - ./k6:/scripts
-    command: ["run", "/scripts/test_basico.js"]
 
 volumes:
   pgdata:

@@ -48,16 +48,22 @@ dist/
 # Streamlit
 .streamlit/
 
-# Docker artefacts
+# Docker / Podman artefacts
 **/docker-data/
 **/tmp/
+*.dockerignore.bak
+
+# Podman specific
+**/.local/share/containers/
 
 # Node (caso adicione scripts js)
 node_modules/
+package-lock.json
 
 # k6 outputs
 k6-results*/
 *.json.summary
+k6-output/
 
 # VSCode data
 .history/

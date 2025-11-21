@@ -11,8 +11,3 @@ dist
 build
 .env
 logs
-*.log
-.idea
-.coverage
-*.egg-info
-**/__pycache__

@@ -1,79 +1,65 @@
 import time
-from typing import Callable
-
 from fastapi import FastAPI, Request
 from prometheus_client import Counter, Histogram, Gauge, make_asgi_app
 
-# Observação: usar o caminho bruto (request.url.path) como label pode causar alta cardinalidade
-# quando há IDs dinâmicos (ex.: /items/123). Para fins didáticos, usaremos o path literal.
-# Em produção, normalize para padrões de rota (ex.: /items/{id}) ou use middlewares que exponham
-# nomes de rotas para reduzir cardinalidade.
-
 # Métricas globais
-http_requests_total = Counter(
+HTTP_REQUESTS_TOTAL = Counter(
     "http_requests_total",
     "Total de requisições HTTP",
-    labelnames=["method", "path", "status_code"],
+    ["method", "path", "status_code"]
 )
 
-http_request_duration_seconds = Histogram(
+HTTP_REQUEST_DURATION_SECONDS = Histogram(
     "http_request_duration_seconds",
     "Duração das requisições HTTP em segundos",
-    labelnames=["method", "path"],
-    # Buckets sugeridos para APIs web (extras do enunciado)
-    buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5]
+    ["method", "path"]
 )
 
-http_requests_in_progress = Gauge(
+HTTP_REQUESTS_IN_PROGRESS = Gauge(
     "http_requests_in_progress",
     "Requisições HTTP em andamento",
-    labelnames=["method", "path"],
+    ["method", "path"]
 )
 
-http_exceptions_total = Counter(
+HTTP_EXCEPTIONS_TOTAL = Counter(
     "http_exceptions_total",
-    "Total de exceções levantadas por requisição",
-    labelnames=["method", "path", "exception_type"],
+    "Total de exceções não tratadas",
+    ["method", "path", "exception_type"]
 )
-
 
 def setup_metrics(app: FastAPI) -> None:
-    """Configura middleware de métricas e expõe /metrics.
-
-    - Contabiliza requests por método, path e status_code.
-    - Mede duração em histogram por método e path.
-    - Gauge de requisições em progresso.
-    - Contador de exceções por tipo.
-    - Monta endpoint /metrics via make_asgi_app (content-type do Prometheus).
     """
+    Configura middleware de métricas e monta o endpoint /metrics.
+    """
+    
+    # Monta o app do Prometheus em /metrics
+    metrics_app = make_asgi_app()
+    app.mount("/metrics", metrics_app)
 
     @app.middleware("http")
-    async def metrics_middleware(request: Request, call_next: Callable):  # type: ignore[override]
+    async def metrics_middleware(request: Request, call_next):
         method = request.method
+        # CUIDADO: path pode ter alta cardinalidade se houver IDs dinâmicos não tratados.
+        # Em produção, idealmente usaríamos request.route.path se disponível ou normalização.
         path = request.url.path
-        start = time.perf_counter()
-
-        # In-progress + duração
-        http_requests_in_progress.labels(method=method, path=path).inc()
-        status_code = 500
+        
+        HTTP_REQUESTS_IN_PROGRESS.labels(method=method, path=path).inc()
+        start_time = time.perf_counter()
+        
         try:
             response = await call_next(request)
-            status_code = int(getattr(response, "status_code", 500))
+            process_time = time.perf_counter() - start_time
+            
+            HTTP_REQUEST_DURATION_SECONDS.labels(method=method, path=path).observe(process_time)
+            HTTP_REQUESTS_TOTAL.labels(method=method, path=path, status_code=response.status_code).inc()
+            
             return response
-        except Exception as exc:  # noqa: BLE001 - contamos exceções genéricas para métricas
-            # Conta exceções por tipo
-            http_exceptions_total.labels(
-                method=method, path=path, exception_type=exc.__class__.__name__
-            ).inc()
-            # Repropaga após marcar; FastAPI tratará e retornará 500
-            raise
+        except Exception as e:
+            # Em caso de exceção não tratada pelo app (500)
+            process_time = time.perf_counter() - start_time
+            HTTP_REQUEST_DURATION_SECONDS.labels(method=method, path=path).observe(process_time)
+            HTTP_EXCEPTIONS_TOTAL.labels(method=method, path=path, exception_type=type(e).__name__).inc()
+            HTTP_REQUESTS_TOTAL.labels(method=method, path=path, status_code=500).inc()
+            raise e
         finally:
-            duration = time.perf_counter() - start
-            http_request_duration_seconds.labels(method=method, path=path).observe(duration)
-            http_requests_in_progress.labels(method=method, path=path).dec()
-            http_requests_total.labels(
-                method=method, path=path, status_code=str(status_code)
-            ).inc()
-
-    # Expor /metrics (Prometheus exposition format - text/plain; version 0.0.4)
-    app.mount("/metrics", make_asgi_app())
+            HTTP_REQUESTS_IN_PROGRESS.labels(method=method, path=path).dec()
