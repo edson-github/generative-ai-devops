@@ -34,6 +34,7 @@ def run_smoke_tests() -> List[Dict]:
         {"name": "Frontend", "url": "http://localhost:8501", "expected_status": 200},
         {"name": "Prometheus", "url": "http://localhost:9090", "expected_status": 200},
         {"name": "PostgreSQL Exporter", "url": "http://localhost:9187/metrics", "expected_status": 200},
+        {"name": "Grafana", "url": "http://localhost:3000", "expected_status": 200},
     ]
     
     results = []

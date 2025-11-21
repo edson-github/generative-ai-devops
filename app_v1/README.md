@@ -8,6 +8,7 @@ Portas padrão:
 - Postgres: 5432
 - Prometheus: 9090
 - PostgreSQL Exporter: 9187
+- Grafana: 3000
 
 ## Rodando com Podman Compose
 
@@ -212,6 +213,114 @@ pg_stat_database_numbackends{datname="appdb"}
 - Use variáveis de ambiente ou secrets para credenciais
 - Não exponha a porta 9187 externamente em produção
 - Configure ACLs/firewall para restringir acesso ao exporter
+
+## Visualização com Grafana
+
+A aplicação inclui **Grafana** para visualização avançada das métricas coletadas pelo Prometheus.
+
+### Serviço Grafana
+- Imagem: `grafana/grafana:latest`
+- Porta: `3000`
+- URL: `http://localhost:3000`
+- Credenciais padrão: `admin` / `admin`
+
+### Datasource Provisionado
+O Grafana é configurado automaticamente com:
+- **Datasource**: Prometheus (`http://prometheus:9090`)
+- **Provisionamento automático**: Via arquivos em `grafana/provisioning/`
+
+### Dashboards Disponíveis
+
+#### 1. FastAPI Application Dashboard
+Monitora métricas da aplicação backend:
+- **Requisições HTTP**: Total, taxa, duração
+- **Status codes**: Distribuição de respostas (200, 404, 500, etc)
+- **Latência**: p50, p95, p99
+- **Requisições em progresso**: Gauge de requisições concorrentes
+- **Exceções**: Total de erros por tipo
+
+**Queries principais:**
+- `rate(http_requests_total[1m])` - Taxa de requisições
+- `histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))` - Latência p95
+- `http_requests_in_progress` - Requisições ativas
+
+#### 2. PostgreSQL General Dashboard
+Monitora métricas detalhadas do banco de dados:
+- **Status**: pg_up, conexões ativas
+- **Tamanho do banco**: Crescimento ao longo do tempo
+- **Transações**: Commits, rollbacks, taxa de commits/s
+- **Operações de tuplas**: Inserções, atualizações, deleções
+- **Performance**: Cache hit ratio, blocos lidos
+- **Locks**: Locks ativos por tipo
+
+**Queries principais:**
+- `pg_database_size_bytes{datname="appdb"}` - Tamanho do banco
+- `rate(pg_stat_database_xact_commit[1m])` - Taxa de commits
+- `rate(pg_stat_database_tup_inserted[1m])` - Taxa de inserções
+
+#### 3. K6 Load Testing Dashboard
+Visualiza resultados de testes de carga:
+- **Virtual Users (VUs)**: Usuários simulados
+- **Request Rate**: Requisições por segundo
+- **Response Time**: Latências (min, max, avg, p95, p99)
+- **HTTP Duration**: Breakdown das fases da requisição
+- **Checks**: Validações passando/falhando
+- **Data Transfer**: Bytes enviados/recebidos
+
+### Acesso e Uso
+
+1. **Login inicial:**
+   - Acesse `http://localhost:3000`
+   - Use: `admin` / `admin`
+   - (Opcional) Altere a senha no primeiro acesso
+
+2. **Navegar dashboards:**
+   - Menu lateral → Dashboards
+   - Dashboards provisionados aparecem automaticamente
+
+3. **Criar dashboards customizados:**
+   - Explore → Prometheus
+   - Crie queries e salve painéis
+
+### Provisionamento
+
+A estrutura de provisionamento garante que datasources e dashboards sejam automaticamente configurados:
+
+```
+grafana/provisioning/
+├── datasources/
+│   └── datasource.yml          # Prometheus datasource
+└── dashboards/
+    ├── dashboards.yml          # Configuração de provisionamento
+    └── json/
+        ├── app_fastapi_dashboard.json
+        ├── postgres_general_dashboard.json
+        └── k6_stress_complete.json
+```
+
+### Persistência
+
+Para persistir dashboards customizados entre reinícios, adicione um volume no `docker-compose.yml`:
+
+```yaml
+volumes:
+  - grafana-data:/var/lib/grafana
+```
+
+### Boas práticas de segurança
+- ⚠️ **Produção**: Altere as credenciais padrão!
+- Use `GF_SECURITY_ADMIN_PASSWORD` via secret/variável de ambiente
+- Configure autenticação externa (OAuth, LDAP)
+- Habilite HTTPS com certificados válidos
+- Restrinja acesso por rede/firewall
+
+### Alertas (Opcional)
+
+Grafana pode enviar alertas baseados em queries:
+1. Edite um painel
+2. Aba "Alert" → Criar regra
+3. Configure condições e notificações
+4. Integre com Slack, email, PagerDuty, etc.
 
 ## Testes de Carga com k6
 Esta aplicação inclui dois scripts de teste de carga usando k6, integrados ao Docker Compose via profile `k6`.

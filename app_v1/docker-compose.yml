@@ -64,5 +64,18 @@ services:
       db:
         condition: service_healthy
 
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+
 volumes:
   pgdata:
