@@ -21,6 +21,13 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       - DATABASE_URL=postgresql+psycopg://app:app@db:5432/appdb
+      - OPENSEARCH_ENABLED=true
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_SCHEME=http
+      - OPENSEARCH_USER=
+      - OPENSEARCH_PASSWORD=
+      - OPENSEARCH_INDEX=logs-app-v1
     ports:
       - "8000:8000"
     volumes:
@@ -28,6 +35,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      opensearch:
+        condition: service_started
 
   frontend:
     build:
@@ -77,5 +86,29 @@ services:
     volumes:
       - ./grafana/provisioning/:/etc/grafana/provisioning/
 
+  opensearch:
+    image: opensearchproject/opensearch:2
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=Admin@123Strong
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_started
+
 volumes:
   pgdata:
+  opensearch-data:

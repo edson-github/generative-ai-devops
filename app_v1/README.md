@@ -9,6 +9,8 @@ Portas padrão:
 - Prometheus: 9090
 - PostgreSQL Exporter: 9187
 - Grafana: 3000
+- OpenSearch: 9200
+- OpenSearch Dashboards: 5601
 
 ## Rodando com Podman Compose
 
@@ -458,3 +460,182 @@ docker compose --profile k6 run --rm k6 run /scripts/stress_ramp.js
 - Thresholds = SLOs automatizados.
 - Diferencie smoke, load, stress, spike.
 - Correlacione com métricas de backend e DB.
+
+---
+
+## 6. Logs Estruturados com OpenSearch
+
+### Arquitetura de Logging
+
+A aplicação implementa logging estruturado em formato JSON com os seguintes componentes:
+
+1. **JSON Formatter** (`backend/logging_conf.py`):
+   - Serializa logs em formato JSON
+   - Inclui timestamp, level, logger e message
+   - Formato legível e fácil de parsear
+
+2. **OpenSearch Handler** (`backend/logging_conf.py`):
+   - Envia logs automaticamente para OpenSearch
+   - Índice: `logs-app-v1`
+   - Buffer de 50 logs ou flush a cada 1 segundo
+   - Conexão: `http://opensearch:9200`
+
+3. **Middleware de Correlação** (`backend/middleware.py`):
+   - Gera `request_id` único por requisição (UUID4)
+   - Injeta `request_id` em todos os logs da requisição
+   - Log de acesso com metadados completos:
+     * method, path, status_code
+     * duration_ms (tempo de processamento)
+     * client_ip, user_agent
+     * request_id para correlação
+
+### Estrutura dos Logs
+
+**Log de Acesso (HTTP):**
+```json
+{
+  "message": "HTTP access",
+  "request_id": "7df1ad5d-8765-4c90-ae91-06d246792fa4",
+  "method": "GET",
+  "path": "/items/",
+  "status_code": 200,
+  "duration_ms": 4,
+  "client_ip": "10.89.0.8",
+  "user_agent": "Prometheus/3.7.3",
+  "timestamp": "2025-11-23T18:27:07.385724+00:00",
+  "level": "INFO",
+  "logger": "uvicorn.access"
+}
+```
+
+**Log da Aplicação:**
+```json
+{
+  "message": "Item created successfully",
+  "item_id": 123,
+  "timestamp": "2025-11-23T18:27:07.385724+00:00",
+  "level": "INFO",
+  "logger": "app.repository"
+}
+```
+
+### Consultando Logs
+
+#### Via API do OpenSearch
+
+1. **Verificar índices:**
+```bash
+curl "http://localhost:9200/_cat/indices?v"
+```
+
+2. **Buscar logs recentes:**
+```bash
+curl "http://localhost:9200/logs-app-v1/_search?size=10&sort=timestamp:desc&pretty"
+```
+
+3. **Buscar por request_id (correlação):**
+```bash
+curl "http://localhost:9200/logs-app-v1/_search?q=request_id:7df1ad5d-8765-4c90-ae91-06d246792fa4&pretty"
+```
+
+4. **Buscar logs de erro:**
+```bash
+curl "http://localhost:9200/logs-app-v1/_search?q=level:ERROR&pretty"
+```
+
+5. **Buscar logs de endpoint específico:**
+```bash
+curl "http://localhost:9200/logs-app-v1/_search?q=path:/items/&pretty"
+```
+
+#### Via OpenSearch Dashboards
+
+Acesse: http://localhost:5601
+
+**Configurar Index Pattern:**
+1. Acesse "Stack Management" > "Index Patterns"
+2. Criar pattern: `logs-app-v1`
+3. Selecionar time field: `timestamp`
+
+**Visualizar Logs:**
+1. Acesse "Discover"
+2. Selecione o index pattern `logs-app-v1`
+3. Filtre por campos: `level`, `request_id`, `path`, etc.
+
+**Queries úteis:**
+- Logs de erro: `level: ERROR`
+- Por método HTTP: `method: POST`
+- Por status code: `status_code: 500`
+- Tempo > 100ms: `duration_ms: >100`
+
+### Benefícios da Correlação
+
+Com o `request_id`, você pode:
+1. **Rastrear requisições completas** através de múltiplos logs
+2. **Debugar problemas** seguindo o fluxo de uma requisição específica
+3. **Medir performance** fim-a-fim de uma transação
+4. **Correlacionar** logs entre diferentes serviços
+
+**Exemplo de correlação:**
+```bash
+# 1. Pegar request_id de um log de erro
+curl "http://localhost:9200/logs-app-v1/_search?q=level:ERROR&size=1" | grep request_id
+
+# 2. Buscar todos os logs daquela requisição
+curl "http://localhost:9200/logs-app-v1/_search?q=request_id:abc-123&sort=timestamp:asc&pretty"
+```
+
+### Monitoramento de Logs
+
+**Métricas importantes:**
+- Taxa de erros: `count(level:ERROR) / count(*)`
+- Latência p95: `percentile(duration_ms, 95)`
+- Endpoints mais lentos: `avg(duration_ms) group by path`
+- Erros por endpoint: `count(status_code:5*) group by path`
+
+### Configuração Avançada
+
+**Ajustar nível de log:**
+```python
+# backend/logging_conf.py
+logging.basicConfig(level=logging.DEBUG)  # Mais verboso
+```
+
+**Filtrar logs sensíveis:**
+```python
+# backend/middleware.py
+# Não logar tokens/senhas
+if 'Authorization' in request.headers:
+    del request.headers['Authorization']
+```
+
+**Ajustar buffer do OpenSearch:**
+```python
+# backend/logging_conf.py
+opensearch_handler = OpenSearchHandler(
+    hosts=[{'host': 'opensearch', 'port': 9200}],
+    buffer_size=100,  # Aumentar buffer
+    flush_frequency_in_sec=5,  # Flush menos frequente
+)
+```
+
+### Troubleshooting
+
+**Logs não aparecem no OpenSearch:**
+1. Verificar conectividade: `curl http://localhost:9200`
+2. Verificar backend logs: `podman logs app_v1_backend_1`
+3. Verificar índice: `curl "http://localhost:9200/_cat/indices?v"`
+
+**OpenSearch Dashboards não carrega:**
+1. Verificar status: `curl http://localhost:5601/api/status`
+2. Aguardar inicialização completa (~30s)
+3. Verificar logs: `podman logs app_v1_opensearch-dashboards_1`
+
+**Performance degradada:**
+1. Reduzir verbosidade dos logs (level=INFO ou WARNING)
+2. Aumentar buffer do OpenSearchHandler
+3. Desabilitar logs de acesso para healthchecks:
+```python
+if request.url.path not in ["/health", "/metrics"]:
+    logger.info("HTTP access", extra={...})
+```
