@@ -55,6 +55,9 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-remote-write-receiver"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
@@ -109,6 +112,23 @@ services:
     depends_on:
       opensearch:
         condition: service_started
+
+  k6:
+    image: grafana/k6:latest
+    profiles: ["k6"]
+    depends_on:
+      backend:
+        condition: service_started
+      prometheus:
+        condition: service_started
+    environment:
+      - K6_OUT=experimental-prometheus-rw
+      - K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write
+      - K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99),avg,med,min,max
+      - API_BASE=http://backend:8000
+    volumes:
+      - ./k6:/scripts
+    command: ["run", "/scripts/test_basico.js"]
 
 volumes:
   pgdata:

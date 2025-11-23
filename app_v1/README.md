@@ -336,7 +336,24 @@ Esta aplicação inclui dois scripts de teste de carga usando k6, integrados ao 
 `db`, `backend`, `prometheus` (Grafana opcional para visualização). Compose resolve dependências.
 
 ### Como executar
-```powershell
+
+**Com Podman Compose:**
+```bash
+# Subir stack (se necessário)
+python3 -m podman_compose -f docker-compose.yml up -d
+
+# Teste básico (test_basico.js)
+python3 -m podman_compose -f docker-compose.yml --profile k6 run --rm k6
+
+# Teste CRUD (test_crud.js)
+python3 -m podman_compose -f docker-compose.yml --profile k6 run --rm k6 run /scripts/test_crud.js
+
+# Usando o script auxiliar
+./podman-manage.sh up  # Subir stack
+```
+
+**Com Docker Compose:**
+```bash
 # Subir stack (se necessário)
 docker compose up -d
 
