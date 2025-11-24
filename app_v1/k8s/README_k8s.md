@@ -217,11 +217,6 @@ Observação: O `VirtualService` agora inclui `localhost` e `127.0.0.1` na lista
 ```powershell
 curl -H "Host: frontend" http://localhost:<porta>/api/docs
 ```
-
-### 7. Validação
-```powershell
-kubectl get pods -n istio-system
-kubectl get pods -n app
 istioctl proxy-status
 kubectl get gw,vs,dr -n app
 ```
@@ -240,17 +235,6 @@ No Kiali: ver grafo com frontend → backend → postgres (gerar tráfego antes)
 ```powershell
 istioctl uninstall --purge -y
 kubectl delete ns istio-system
-```
-
-### 10. Checklist
-- Pods istio-system Running
-- Pods app com 2/2
-- Gateway + VirtualService aplicados
-- Tráfego acessível via ingressgateway
-- Kiali exibe grafo completo
-
-### 11. Critérios de Aceite (Detalhado)
-| Item | Critério | Status esperado |
 |------|----------|-----------------|
 | 1 | Namespace `istio-system` criado | `kubectl get ns istio-system` retorna Active |
 | 2 | Istio control plane instalado | Pods (`istiod`, `istio-ingressgateway`, `kiali`, etc.) Running |
@@ -316,13 +300,8 @@ kubectl create ns istio-system 2>$null | Out-Null
 istioctl install -f app_v1/k8s/istio/install-istio.yaml -y
 kubectl label ns app istio-injection=enabled --overwrite
 kubectl rollout restart deployment -n app --all
-Write-Host 'Aguardando sidecars...' -ForegroundColor Cyan
-$timeout = (Get-Date).AddMinutes(5)
-do {
-  $pods = kubectl get pods -n app --no-headers 2>$null
   $allInjected = $true
   foreach ($line in $pods) {
-    if ($line -notmatch '2/2') { $allInjected = $false; break }
   }
   if (-not $allInjected) { Start-Sleep 5 }
 } while (-not $allInjected -and (Get-Date) -lt $timeout)
