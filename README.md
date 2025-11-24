@@ -1,4 +1,3 @@
-
 # 🚀 Generative AI for DevOps – Material de apoio - Curso Udemy
 
 Aprenda (ou refine) habilidades de DevOps acelerando o desenvolvimento de uma aplicação FastAPI + Streamlit, evoluindo de um MVP simples (app_v0) para uma versão instrumentada e observável (app_v1) usando **Prompts bem estruturados** e ferramentas de **Generative AI** como copilots/assistentes.
@@ -170,5 +169,21 @@ Sugestões de novos desafios ou melhorias de dashboards são bem-vindas via issu
 ---
 
 Boa jornada! Utilize a GenAI apenas dentro do escopo evidenciado no repositório e valide sempre cada modificação com execução local ou via Docker Compose. 🙌
+
+## 🟢 Resultado Final: Observabilidade com Istio/Kiali
+
+A instrumentação do cluster com Istio e Kiali permite visualizar o grafo de serviços, fluxos de requisições e métricas em tempo real. Após seguir o roteiro do projeto, o resultado esperado é semelhante ao exemplo abaixo:
+
+![Grafo de serviços no Kiali](prompts/kiali_grafo_validacao.png)
+
+**O grafo mostra:**
+- Todos os serviços principais conectados (backend, frontend, prometheus, grafana, opensearch, postgres-exporter, postgres)
+- Fluxo de requisições HTTP entre componentes
+- Métricas de sucesso, erro e taxa de requisições
+- Visualização centralizada para troubleshooting e análise de dependências
+
+Se o grafo estiver como na imagem, a instrumentação Istio/Kiali está concluída e funcional.
+
+---
 
 # generative-ai-devops
