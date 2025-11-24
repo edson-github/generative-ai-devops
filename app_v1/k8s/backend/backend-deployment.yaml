@@ -35,7 +35,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: backend-local:latest
+          image: backend-local:v2
           imagePullPolicy: IfNotPresent
           env:
             - name: DATABASE_URL

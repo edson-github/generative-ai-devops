@@ -1,0 +1,3 @@
+![Kiali grafo de validação](kiali_grafo_validacao.png)
+
+Este print mostra o grafo de serviços do ambiente instrumentado com Istio e Kiali, conforme validado no README_k8s.md.

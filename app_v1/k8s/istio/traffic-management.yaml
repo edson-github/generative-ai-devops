@@ -23,13 +23,9 @@ metadata:
   namespace: app
 spec:
   hosts:
-    - frontend
-    - frontend.app.svc.cluster.local
-    # Hosts adicionais para facilitar acesso local via port-forward/NodePort sem precisar -H "Host: frontend"
-    - localhost
-    - 127.0.0.1
+    - "*"
   gateways:
-    - app-gateway
+    - istio-system/istio-ingressgateway
   http:
     - match:
         - uri:

@@ -167,10 +167,7 @@ Se algo persistir em estado Pending/CrashLoop, ver seção de troubleshooting.
 
 ---
 ## 14. Observações
-- Uso de tags explícitas (ex.: `backend-local:v2`) ajuda a garantir que a imagem mais recente foi carregada.
-- Para Prometheus/Grafana OpenSearch persistentes, adicionaria PVCs e ajustaria spec (fora do escopo inicial didático).
 
----
 ## Istio Service Mesh (Perfil Demo)
 
 ### 1. Instalação do istioctl (Windows 11 PowerShell)
@@ -179,9 +176,6 @@ winget install -e --id Istio.Istioctl
 # (Fallback)
 curl -L https://istio.io/downloadIstio | powershell
 istioctl version
-```
-
-### 2. Instalar Istio (usando IstioOperator)
 ```powershell
 kubectl create namespace istio-system 2>$null || echo "namespace existe"
 istioctl install -f app_v1/k8s/istio/install-istio.yaml -y

@@ -79,3 +79,7 @@ def api_delete_item(item_id: uuid.UUID, db: Session = Depends(get_db)):
     if not ok:
         raise HTTPException(status_code=404, detail="Item não encontrado")
     return None
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}

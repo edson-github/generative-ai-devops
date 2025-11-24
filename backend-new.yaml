@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: backend-2
+  name: backend-2
+  namespace: app
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: backend-2
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: backend-2
+    spec:
+      containers:
+      - env:
+        - name: DATABASE_URL
+          value: postgresql+psycopg://app:app@postgres:5432/appdb
+        - name: OPENSEARCH_ENABLED
+          value: "true"
+        - name: OPENSEARCH_HOST
+          value: opensearch
+        - name: OPENSEARCH_PORT
+          value: "9200"
+        - name: OPENSEARCH_SCHEME
+          value: http
+        - name: OPENSEARCH_USER
+        - name: OPENSEARCH_PASSWORD
+        - name: OPENSEARCH_INDEX
+          value: logs-app-v1
+        image: backend-local:latest
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /docs
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: backend
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /items?limit=1
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+status:
+  availableReplicas: 1
+  conditions:
+  - lastTransitionTime: "2025-11-23T19:42:46Z"
+    lastUpdateTime: "2025-11-23T19:42:46Z"
+    message: Deployment has minimum availability.
+    reason: MinimumReplicasAvailable
+    status: "True"
+    type: Available
+  - lastTransitionTime: "2025-11-23T19:42:33Z"
+    lastUpdateTime: "2025-11-23T19:42:46Z"
+    message: ReplicaSet "backend-6b4fc8ffdd" has successfully progressed.
+    reason: NewReplicaSetAvailable
+    status: "True"
+    type: Progressing
+  observedGeneration: 1
+  readyReplicas: 1
+  replicas: 1
+  updatedReplicas: 1
